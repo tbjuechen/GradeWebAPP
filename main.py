@@ -89,13 +89,13 @@ async def get_user_grade(user:UserInDB = Depends(get_current_user),db: Session =
 
 @app.post('/rank/grade',tags=["rank"],response_model=list[PhotoGrade])
 async def get_rank_grade(range:RequestRange,db: Session = Depends(get_db)):
-    ans = await dao.count_average_grade(db)
+    ans = await dao.count_average_grade_v2(db)
     PhotoList = [PhotoGrade(rank=range.start + index + 1,photo_id=item[0],ave_grade=item[1]) for index, item in enumerate(ans[range.start:range.end])]
     return PhotoList
 
 @app.post('/rank/gradedec',tags=["rank"],response_model=list[PhotoGrade])
 async def get_rank_grade_dec(range:RequestRange,db: Session = Depends(get_db)):
-    ans = await dao.count_average_grade(db)
+    ans = await dao.count_average_grade_v2(db)
     ans = ans[::-1]
     PhotoList = [PhotoGrade(rank=range.start + index + 1,photo_id=item[0],ave_grade=item[1]) for index, item in enumerate(ans[range.start:range.end])]
     return PhotoList

@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import func, case,and_
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Union
@@ -67,10 +67,41 @@ async def count_grade_by_user(db: Session, user_id: int) -> NagativeInfo:
 async def count_grade_by_user_and_grade(db: Session, user_id: int):
     return db.query(Grade.grade, func.count(Grade.id)).filter(Grade.user_id == user_id).group_by(Grade.grade).all()
 
-# 统计每张有评分的照片剔除-1的平均分并从高到低排序
+# 统计每有评分的照片剔除-1的平均分并从高到低排序
 async def count_average_grade(db: Session):
     return db.query(Grade.photo_id, func.avg(Grade.grade)).filter(Grade.grade != -1).group_by(Grade.photo_id).order_by(func.avg(Grade.grade).desc()).all()
 
-# 根据photo_id获取照片的评分数据,其中包含user.username,grade,create_at
+# 统计每张至少有2个评分 且-1的评分数目小于一半的照片，剔除-1的平均分并从高到低排序
+async def count_average_grade_v2(db: Session):
+    subquery = (
+        db.query(
+            Grade.photo_id,
+            func.count(Grade.id).label('total_grades'),
+            func.sum(case((Grade.grade == -1, 1), else_=0)).label('negative_grades'),
+            func.avg(case((Grade.grade != -1, Grade.grade), else_=None)).label('average_grade')
+        )
+        .group_by(Grade.photo_id)
+        .having(and_(
+            func.count(Grade.id) >= 2,
+            func.sum(case((Grade.grade == -1, 1), else_=0)) < (func.count(Grade.id) / 2)
+        ))
+        .subquery()
+    )
+
+    # 排序并查询结果
+    query = (
+        db.query(
+            Photo.id,
+            subquery.c.average_grade
+        )
+        .join(subquery, Photo.id == subquery.c.photo_id)
+        .order_by(subquery.c.average_grade.desc())
+    )
+
+    results = query.all()
+    return results
+    
+
+# 根据photo_id获取照片的评分数据,其中包含rank,user.username,grade,create_at
 async def get_grade_by_photo_id(db: Session, photo_id: int):
     return db.query(User.username, Grade.grade, Grade.create_at).join(Grade).filter(Grade.photo_id == photo_id).all()
